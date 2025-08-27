@@ -52,7 +52,7 @@ def show_main_page():
             st.session_state.current_page = 'manual'
             st.rerun()
 
-
+    
 def show_manual_page():
     """수동 선택 페이지"""
     st.title("✋ 감정을 직접 선택해주세요")
