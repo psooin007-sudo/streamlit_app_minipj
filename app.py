@@ -1,4 +1,5 @@
 import streamlit as st
+from emotion_model import analyze_emotion_from_image, detect_face_and_analyze, get_latest_emotion, reset_emotion_state
 
 # 페이지 설정
 st.set_page_config(
@@ -183,19 +184,31 @@ def show_manual_page():
                 st.session_state.selected_emotion = emotion_key
                 st.rerun()
 
-
 def show_webcam_page():
-    """웹캠 페이지 (아직 기본 구조만)"""
+    """웹캠 페이지"""
     st.title("📹 웹캠 감정 분석")
     st.markdown("---")
     
     # 뒤로가기 버튼
     if st.button("🔙 메인으로 돌아가기"):
+        reset_emotion_state()  # 감정 상태 초기화
         st.session_state.current_page = 'main'
         st.rerun()
     
-    st.info("🚧 웹캠 기능은 다음 단계에서 구현할 예정입니다!")
+    # 웹캠 스트리밍 (일단 기본 화면만)
+    st.markdown("### 🎥 웹캠 화면")
+    st.info("웹캠을 허용해주세요. 얼굴이 감지되면 자동으로 감정을 분석합니다.")
     
+    # 현재 감정 상태 표시
+    emotion, confidence = get_latest_emotion()
+    if emotion:
+        st.success(f"감지된 감정: {EMOTIONS[emotion]['korean']} ({confidence:.2f})")
+        
+        if st.button("📊 이 결과로 이동하기"):
+            st.session_state.selected_emotion = emotion
+            st.session_state.current_page = 'result'
+            st.rerun()
+            
     # 임시로 테스트용 버튼들
     st.markdown("### 테스트용 감정 결과")
     cols = st.columns(3)
