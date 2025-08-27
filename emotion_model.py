@@ -2,12 +2,20 @@
 감정 분석 모델 로드 및 추론 모듈
 """
 
-import cv2
-import numpy as np
-from PIL import Image
-import streamlit as st
 import threading
 import time
+
+# 기본 라이브러리 임포트
+try:
+    import cv2
+    import numpy as np
+    from PIL import Image
+    import streamlit as st
+    HAS_OPENCV = True
+except ImportError as e:
+    HAS_OPENCV = False
+    st.error(f"필수 라이브러리가 없습니다: {e}")
+    st.info("requirements.txt 파일을 확인하고 라이브러리를 설치해주세요.")
 
 # 전역 변수
 emotion_pipeline = None
@@ -17,13 +25,13 @@ emotion_lock = threading.Lock()
 
 # 감정 매핑 (모델 출력 -> 우리 앱 형식)
 EMOTION_MAPPING = {
+    'sad': 'sad',
+    'disgust': 'neutral',  # disgust는 neutral로 매핑
     'angry': 'angry',
-    'sad': 'sad', 
-    'happy': 'happy',
-    'fear': 'fear',
-    'surprise': 'surprise',
     'neutral': 'neutral',
-    'disgust': 'neutral'  # disgust는 neutral로 매핑
+    'fear': 'fear',
+    'surprise': 'surprise', 
+    'happy': 'happy'
 }
 
 @st.cache_resource
@@ -31,8 +39,11 @@ def load_emotion_model():
     """
     감정 분석 모델을 로드합니다 (캐시됨)
     Returns:
-        pipeline: Hugging Face 감정 분석 파이프라인
+        pipeline: Hugging Face 감정 분석 파이프라인 또는 None
     """
+    if not HAS_OPENCV:
+        return None
+        
     try:
         from transformers import pipeline
         
@@ -40,7 +51,7 @@ def load_emotion_model():
         pipe = pipeline(
             'image-classification', 
             model="dima806/facial_emotions_image_detection",
-            device=-1  # CPU 사용 (-1), GPU 사용시 0
+            device=-1,  # CPU 사용 (-1), GPU 사용시 0
         )
         return pipe
     except ImportError:
@@ -48,6 +59,7 @@ def load_emotion_model():
         return None
     except Exception as e:
         st.error(f"모델 로드 실패: {str(e)}")
+        st.info("네트워크 연결을 확인하거나 잠시 후 다시 시도해주세요.")
         return None
 
 def analyze_emotion_from_image(image):
@@ -59,6 +71,9 @@ def analyze_emotion_from_image(image):
         tuple: (emotion_key, confidence)
     """
     global emotion_pipeline
+    
+    if not HAS_OPENCV:
+        return 'neutral', 0.0
     
     if emotion_pipeline is None:
         emotion_pipeline = load_emotion_model()
@@ -95,6 +110,9 @@ def detect_face_and_analyze(image_array):
     Returns:
         tuple: (emotion_key, confidence, face_coordinates)
     """
+    if not HAS_OPENCV:
+        return 'neutral', 0.0, None
+        
     try:
         # 얼굴 감지기 초기화
         face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
