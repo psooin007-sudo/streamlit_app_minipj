@@ -1,11 +1,18 @@
 # streamlit_app.py (수정된 버전)
 import streamlit as st
-import time
 from datetime import datetime
-import plotly.graph_objects as go
-import plotly.express as px
-import pandas as pd
-
+# app.py 상단에 추가
+try:
+    import plotly.graph_objects as go
+    import plotly.express as px
+    import pandas as pd
+except ImportError:
+    import subprocess
+    import sys
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "plotly", "pandas"])
+    import plotly.graph_objects as go
+    import plotly.express as px
+    import pandas as pd
 # 페이지 설정
 st.set_page_config(
     page_title="감정 분석 결과",
