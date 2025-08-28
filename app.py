@@ -1,19 +1,21 @@
+# streamlit_app.py (배포용 수정버전)
 import streamlit as st
-from emotion_model import analyze_emotion_from_image, detect_face_and_analyze, get_latest_emotion, reset_emotion_state
+import time
+from datetime import datetime
+import plotly.graph_objects as go
+import plotly.express as px
+import pandas as pd
 
 # 페이지 설정
 st.set_page_config(
-    page_title="😊 감정 분석", 
-    page_icon="🎭", 
-    layout="wide"
+    page_title="감정 분석 결과",
+    page_icon="🎭",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# 세션 상태 초기화 (처음 실행시에만)
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = 'main'  # 시작 페이지
-
-# 감정 리스트 정의 (새로운 상세 구조)
-EMOTIONS = {
+# 감정별 데이터 (기존과 동일)
+EMOTION_DATA = {
     'angry': {
         'emoji': '😠',
         'korean': '화남',
@@ -81,7 +83,7 @@ EMOTIONS = {
             '👶 작은 단계부터 시작해보세요'
         ],
         'quotes': [
-            '"용기란 두려움이 없는 것이 아니라 두려움을 극복하는 것이다." - 넌슨 만델라',
+            '"용기란 두려움이 없는 것이 아니라 두려움을 극복하는 것이다." - 넬슨 만델라',
             '"두려움은 항상 무지에서 생긴다." - 에머슨'
         ],
         'tips': '두려움을 구체적으로 분석하고, 작은 행동부터 시작해보세요.'
@@ -124,193 +126,170 @@ EMOTIONS = {
     }
 }
 
-# === 페이지 함수들 ===
+def safe_get_query_param(param_name, default_value):
+    """안전한 쿼리 파라미터 추출"""
+    try:
+        if hasattr(st, 'query_params'):
+            params = st.query_params
+            if param_name in params:
+                value = params[param_name]
+                if isinstance(value, list):
+                    return value[0] if value else default_value
+                return value
+        return default_value
+    except Exception as e:
+        st.sidebar.error(f"쿼리 파라미터 읽기 오류: {e}")
+        return default_value
 
-def show_main_page():
-    """메인 선택 페이지"""
-    st.title("😊 감정 분석 프로젝트")
+def create_emotion_gauge(score, color):
+    """감정 신뢰도 게이지 차트"""
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=score * 100,
+        domain={'x': [0, 1], 'y': [0, 1]},
+        title={'text': "신뢰도 (%)"},
+        delta={'reference': 80},
+        gauge={
+            'axis': {'range': [None, 100]},
+            'bar': {'color': color},
+            'steps': [
+                {'range': [0, 50], 'color': "lightgray"},
+                {'range': [50, 80], 'color': "gray"}
+            ],
+            'threshold': {
+                'line': {'color': "red", 'width': 4},
+                'thickness': 0.75, 
+                'value': 90
+            }
+        }
+    ))
+    fig.update_layout(height=300)
+    return fig
+
+def show_homepage():
+    """홈페이지 (쿼리 파라미터가 없을 때)"""
+    st.title("🎭 감정 분석 시스템")
     st.markdown("---")
     
-    # 설명
     st.markdown("""
-    ### 🎭 어떤 방법으로 감정을 분석하고 싶으세요?
+    ## 웹캠 감정 분석 사용법
     
-    두 가지 방법 중 하나를 선택해주세요:
+    ### 📥 1단계: 로컬 프로그램 다운로드
+    
+    **방법 1: 직접 다운로드**
     """)
     
-    # 선택 버튼들을 두 개의 컬럼으로 배치
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("#### 📹 실시간 웹캠 분석")
-        st.write("웹캠을 통해 실시간으로 감정을 분석합니다")
-        if st.button("🎥 웹캠으로 분석하기", use_container_width=True):
-            st.session_state.current_page = 'webcam'
-            st.rerun()  # 페이지 새로고침
-    
-    with col2:
-        st.markdown("#### ✋ 수동으로 감정 선택")
-        st.write("직접 감정을 선택해서 결과를 확인합니다")
-        if st.button("🎯 직접 선택하기", use_container_width=True):
-            st.session_state.current_page = 'manual'
-            st.rerun()
+    # 코드 다운로드 링크 제공
+    with st.expander("💻 웹캠 분석 프로그램 코드"):
+        st.code('''
+# 이 코드를 webcam_analyzer.py로 저장하세요
+# 필요한 라이브러리: pip install opencv-python transformers pillow torch
 
-
-def show_manual_page():
-    """수동 선택 페이지"""
-    st.title("✋ 감정을 직접 선택해주세요")
+# (여기에 위의 webcam_to_deployed_app.py 코드 내용을 표시)
+        ''', language='python')
+    
+    st.markdown("""
+    **방법 2: GitHub에서 클론**
+    ```bash
+    git clone [your-repo-url]
+    cd [repo-name]
+    pip install -r requirements.txt
+    python webcam_analyzer.py
+    ```
+    
+    ### 🚀 2단계: 프로그램 실행
+    1. `webcam_analyzer.py` 파일을 실행하세요
+    2. OpenCV 창이 열리면 얼굴을 카메라에 맞춰주세요
+    3. 얼굴을 클릭하거나 'C' 키를 눌러 감정을 캡처하세요
+    4. 2초 후 자동으로 이 페이지에서 결과가 표시됩니다!
+    
+    ### 📋 시스템 요구사항
+    - Python 3.7+
+    - 웹캠이 연결된 컴퓨터
+    - 인터넷 연결 (결과 표시용)
+    
+    ### 🔧 문제 해결
+    - 웹캠이 인식되지 않으면 다른 프로그램에서 카메라를 사용 중인지 확인하세요
+    - 모델 로딩이 느리면 처음 실행시에만 발생하는 정상적인 현상입니다
+    """)
+    
+    # 테스트용 감정 선택
     st.markdown("---")
+    st.markdown("## 🧪 테스트용 감정 체험")
+    st.write("웹캠 없이도 각 감정별 결과를 미리 체험해볼 수 있습니다:")
     
-    # 뒤로가기 버튼
-    if st.button("🔙 메인으로 돌아가기"):
-        st.session_state.current_page = 'main'
-        st.rerun()
-    
-    st.markdown("### 🎭 어떤 감정을 선택하시겠어요?")
-    
-    # 감정 선택 버튼들을 3x2 그리드로 배치
     cols = st.columns(3)
+    emotions_to_show = ['happy', 'sad', 'angry', 'fear', 'surprise', 'neutral']
     
-    for i, (emotion_key, emotion_data) in enumerate(EMOTIONS.items()):
+    for i, emotion in enumerate(emotions_to_show):
         col = cols[i % 3]
         with col:
-            # 각 감정별 스타일링된 버튼
-            if st.button(
-                f"{emotion_data['emoji']} {emotion_data['korean']}", 
-                use_container_width=True,
-                key=f"emotion_{emotion_key}"
-            ):
-                st.session_state.current_page = 'result'
-                st.session_state.selected_emotion = emotion_key
+            emotion_data = EMOTION_DATA[emotion]
+            if st.button(f"{emotion_data['emoji']} {emotion_data['korean']}", 
+                        key=f"test_{emotion}", use_container_width=True):
+                st.query_params.emotion = emotion
+                st.query_params.score = "0.85"
                 st.rerun()
 
-def show_webcam_page():
-    """웹캠 페이지"""
-    st.title("📹 웹캠 감정 분석")
-    st.markdown("---")
+def show_result_page(emotion, score):
+    """결과 페이지 표시"""
+    # 세션 상태 초기화
+    if 'emotion_history' not in st.session_state:
+        st.session_state.emotion_history = []
     
-    # 뒤로가기 버튼
-    if st.button("🔙 메인으로 돌아가기"):
-        reset_emotion_state()  # 감정 상태 초기화
-        st.session_state.current_page = 'main'
-        st.rerun()
+    # 감정 히스토리 업데이트
+    current_time = datetime.now()
+    should_add = True
     
-    # 웹캠 스트리밍 (일단 기본 화면만)
-    st.markdown("### 🎥 웹캠 화면")
-    st.info("웹캠을 허용해주세요. 얼굴이 감지되면 자동으로 감정을 분석합니다.")
+    if st.session_state.emotion_history:
+        last_entry = st.session_state.emotion_history[-1]
+        if (last_entry['emotion'] == emotion and 
+            (current_time - last_entry['timestamp']).seconds < 10):
+            should_add = False
     
-    # 현재 감정 상태 표시
-    emotion, confidence = get_latest_emotion()
-    if emotion:
-        st.success(f"감지된 감정: {EMOTIONS[emotion]['korean']} ({confidence:.2f})")
+    if should_add:
+        st.session_state.emotion_history.append({
+            'emotion': emotion,
+            'score': score,
+            'timestamp': current_time
+        })
         
-        if st.button("📊 이 결과로 이동하기"):
-            st.session_state.selected_emotion = emotion
-            st.session_state.current_page = 'result'
-            st.rerun()
-            
-    # 임시로 테스트용 버튼들
-    st.markdown("### 테스트용 감정 결과")
-    cols = st.columns(3)
+        if len(st.session_state.emotion_history) > 50:
+            st.session_state.emotion_history = st.session_state.emotion_history[-50:]
     
-    test_emotions = ['happy', 'sad', 'angry']
-    for i, emotion in enumerate(test_emotions):
-        with cols[i]:
-            if st.button(f"테스트: {EMOTIONS[emotion]['korean']}", key=f"test_{emotion}"):
-                st.session_state.current_page = 'result'
-                st.session_state.selected_emotion = emotion
-                st.rerun()
-
-
-def show_result_page():
-    """감정 결과 페이지"""
-    import random  # 랜덤 선택을 위해 추가
+    emotion_data = EMOTION_DATA[emotion]
     
-    emotion_key = st.session_state.get('selected_emotion', 'neutral')
-    emotion = EMOTIONS[emotion_key]
+    # 메인 헤더
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown(f"""
+        <div style="text-align: center; padding: 2rem;">
+            <h1 style="color: {emotion_data['color']}; font-size: 4rem; margin: 0;">
+                {emotion_data['emoji']}
+            </h1>
+            <h2 style="color: {emotion_data['color']}; margin: 0.5rem 0;">
+                {emotion_data['korean']} ({emotion.upper()})
+            </h2>
+            <p style="font-size: 1.2rem; color: #666; margin: 0;">
+                {emotion_data['description']}
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    st.title(f"{emotion['emoji']} {emotion['korean']} 감정 결과")
-    st.markdown("---")
-    
-    # 기본 설명
-    st.markdown(f"""
-    ### 🎯 분석 결과: **{emotion['korean']}**
-    
-    {emotion['emoji']} {emotion['description']}
-    """)
-    
-    # 랜덤으로 솔루션 하나 선택해서 표시
-    random_solution = random.choice(emotion['solutions'])
-    st.success(f"💡 **추천 해결책**: {random_solution}")
-    
-    # 랜덤으로 명언 하나 선택해서 표시
-    random_quote = random.choice(emotion['quotes'])
-    st.info(f"📝 **오늘의 명언**: {random_quote}")
-    
-    # 팁 표시
-    st.markdown(f"### 💭 **도움이 되는 팁**")
-    st.write(f"✨ {emotion['tips']}")
-    
-    # 더 많은 정보 보기 (접을 수 있는 형태)
-    with st.expander("📋 더 많은 해결책 보기"):
-        st.write("**모든 해결책:**")
-        for solution in emotion['solutions']:
-            st.write(f"• {solution}")
-    
-    with st.expander("💬 더 많은 명언 보기"):
-        st.write("**관련 명언들:**")
-        for quote in emotion['quotes']:
-            st.write(f"• {quote}")
-    
-    # 액션 버튼들
-    col1, col2 = st.columns(2)
+    # 신뢰도 게이지와 솔루션
+    col1, col2 = st.columns([1, 1])
     
     with col1:
-        if st.button("🔄 다시 분석하기", use_container_width=True):
-            st.session_state.current_page = 'main'
-            # 이전 결과 초기화
-            if 'selected_emotion' in st.session_state:
-                del st.session_state.selected_emotion
-            st.rerun()
+        st.subheader("📊 분석 결과")
+        gauge_fig = create_emotion_gauge(score, emotion_data['color'])
+        st.plotly_chart(gauge_fig, use_container_width=True)
+        st.info(f"🕐 분석 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
     with col2:
-        if st.button("📊 다른 감정 보기", use_container_width=True):
-            st.session_state.current_page = 'manual'
-            st.rerun()
-
-
-# === 메인 라우터 ===
-
-def main():
-    """메인 라우터 - 현재 페이지에 따라 적절한 함수 호출"""
+        st.subheader("💡 추천 솔루션")
+        for solution in emotion_data['solutions']:
+            st.markdown(f"• {solution}")
+        
+        st.subheader("🎯 도움이 되는 팁")
+        st.markdown(f"💭 {emotion_data['tips']}")
     
-    # 사이드바에 현재 상태 표시 (디버깅용)
-    with st.sidebar:
-        st.header("🔧 상태 정보")
-        st.write(f"현재 페이지: `{st.session_state.current_page}`")
-        if 'selected_emotion' in st.session_state:
-            emotion = EMOTIONS[st.session_state.selected_emotion]
-            st.write(f"선택된 감정: {emotion['emoji']} {emotion['korean']}")
-    
-    # 현재 페이지에 따라 적절한 함수 호출
-    if st.session_state.current_page == 'main':
-        show_main_page()
-    elif st.session_state.current_page == 'manual':
-        show_manual_page()
-    elif st.session_state.current_page == 'webcam':
-        show_webcam_page()
-    elif st.session_state.current_page == 'result':
-        show_result_page()
-    else:
-        # 예상치 못한 페이지면 메인으로
-        st.session_state.current_page = 'main'
-        st.rerun()
-    
-    # 푸터
-    st.markdown("---")
-    st.caption("Made with Streamlit 🚀")
-
-
-# 앱 실행
-if __name__ == "__main__":
-    main()
